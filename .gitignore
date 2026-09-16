@@ -1,0 +1,19 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+# Java
+backend/target/
+backend/.idea/
+backend/*.iml
+backend/.mvn/
+
+# Общее
+*.log
+.DS_Store
+Thumbs.db
