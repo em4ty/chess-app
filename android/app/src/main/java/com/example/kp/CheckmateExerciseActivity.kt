@@ -4,41 +4,42 @@ import android.os.Bundle
 
 class CheckmateExerciseActivity : BaseExerciseActivity() {
 
+    // Во всех позициях ходят черные и есть ровно один матовый ход.
     private val checkmateExercises = listOf(
         Exercise(
             level = 1,
-            fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
-            question = "Мат в 1 ход. Найдите выигрывающий ход за черных.",
+            fen = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2",
+            question = "Мат в 1 ход. Белые ослабили позицию короля ходами f3 и g4.",
             correctAnswers = listOf("Qh4#"),
-            hint = "Ферзь может поставить мат на h4."
+            hint = "Ферзь d8 по диагонали d8-h4 бьёт короля e1, а закрыться или съесть ферзя нечем."
         ),
         Exercise(
             level = 2,
-            fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-            question = "Мат в 2 хода. Первый ход за черных?",
-            correctAnswers = listOf("d5", "e5", "c5"),
-            hint = "Начните с контроля центра."
+            fen = "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1",
+            question = "Мат в 1 ход. Король белых заперт собственными пешками.",
+            correctAnswers = listOf("Re1#"),
+            hint = "Ладья по открытой линии «e» может дойти до первой горизонтали."
         ),
         Exercise(
             level = 3,
-            fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 3 3",
-            question = "Классическая ловушка. Найдите матовую комбинацию.",
-            correctAnswers = listOf("Nxe4", "Qh4"),
-            hint = "Тактический удар конем может привести к быстрому мату."
+            fen = "8/8/8/8/8/5k2/1q6/7K b - - 0 1",
+            question = "Мат в 1 ход. Ферзь и король против короля.",
+            correctAnswers = listOf("Qg2#"),
+            hint = "Ферзь должен встать рядом с белым королём так, чтобы его защищал ваш король."
         ),
         Exercise(
             level = 4,
-            fen = "r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 0 4",
-            question = "Мат в 3 хода. Найдите первый ход за черных.",
-            correctAnswers = listOf("Nxe4", "Bb4+"),
-            hint = "Начните с тактического удара."
+            fen = "7k/8/8/8/8/1r6/r7/6K1 b - - 0 1",
+            question = "Мат в 1 ход. Две ладьи против короля.",
+            correctAnswers = listOf("Rb1#"),
+            hint = "Одна ладья перекрывает вторую горизонталь, другая даёт шах по первой («лесенка»)."
         ),
         Exercise(
             level = 5,
-            fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 2 5",
-            question = "Классический мат черными. Найдите завершающий ход.",
-            correctAnswers = listOf("Qh4", "Nxe4"),
-            hint = "Ферзь или конь могут поставить красивый мат."
+            fen = "7k/8/8/8/4n3/8/6PP/6RK b - - 0 1",
+            question = "Мат в 1 ход. Белый король окружён своими фигурами.",
+            correctAnswers = listOf("Nf2#"),
+            hint = "Конь ходит «буквой Г» и бьёт короля h1, а король не может ни уйти, ни съесть коня."
         )
     )
 
@@ -69,11 +70,11 @@ class CheckmateExerciseActivity : BaseExerciseActivity() {
 
     override fun getLevelDescription(level: Int): String {
         return when (level) {
-            1 -> "Базовый: Мат в 1 ход"
-            2 -> "Средний: Мат в 2 хода"
-            3 -> "Продвинутый: Тактические ловушки"
-            4 -> "Эксперт: Мат в 3 хода"
-            5 -> "Мастер: Классические маты"
+            1 -> "Базовый: Детский мат наоборот"
+            2 -> "Средний: Мат по последней линии"
+            3 -> "Продвинутый: Ферзь и король"
+            4 -> "Эксперт: Мат двумя ладьями"
+            5 -> "Мастер: Удушающий мат конём"
             else -> "Упражнение $level"
         }
     }

@@ -18,14 +18,16 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
     protected val totalLevels = 5
     protected var userId: Long = 0
 
+    // true, пока верный ответ засчитан и идёт переход на следующий уровень
+    private var awaitingNext = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityExerciseBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Получаем userId
-        val prefs = getSharedPreferences("chess_auth", MODE_PRIVATE)
-        userId = prefs.getLong("user_id", 0)
+        userId = AuthStore.userId()
 
         binding.chessBoard.exerciseMode = true
 
@@ -53,6 +55,7 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
     }
 
     private fun checkBoardMove(move: String) {
+        if (awaitingNext) return
         if (isBoardMoveCorrect(move)) {
             handleCorrectAnswer()
         } else {
@@ -61,13 +64,12 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
     }
 
     private fun isBoardMoveCorrect(move: String): Boolean {
-        val correctMoves = getCorrectAnswersForLevel(currentLevel)
-        val moveTarget = move.takeLast(2).lowercase()
-
-        return correctMoves.any { correctMove ->
-            val correctTarget = correctMove.takeLast(2).lowercase()
-            moveTarget == correctTarget
-        }
+        // Сравниваем фигуру и поле назначения, а не только поле: "Qh4#" и "Nxe4" должны распознаваться
+        return MoveMatcher.matches(
+            move,
+            binding.chessBoard.lastMovedPieceType,
+            getCorrectAnswersForLevel(currentLevel)
+        )
     }
 
     private fun showHint() {
@@ -98,15 +100,18 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
     }
 
     private fun handleCorrectAnswer() {
+        awaitingNext = true
+        val solvedLevel = currentLevel
         lifecycleScope.launch {
             try {
-                // СРАЗУ отправляем на сервер, что упражнение выполнено
+                // Сообщаем серверу, какое именно упражнение пройдено: повтор не накручивает счётчик
+                var saved = true
                 if (userId > 0) {
-                    // Добавляем выполненное упражнение
-                    RetrofitClient.instance.addExerciseCompleted(userId)
-
-                    // Добавляем правильный ответ
-                    RetrofitClient.instance.addCorrectAnswer(userId)
+                    val response = RetrofitClient.instance.completeExercise(
+                        userId,
+                        ExerciseCompletedRequest(getExerciseType(), solvedLevel)
+                    )
+                    saved = response.isSuccessful
                 }
 
                 runOnUiThread {
@@ -115,7 +120,7 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
 
                     Toast.makeText(
                         this@BaseExerciseActivity,
-                        "Правильно! Упражнение засчитано",
+                        if (saved) "Правильно! Упражнение засчитано" else "Правильно! Но прогресс сохранить не удалось",
                         Toast.LENGTH_SHORT
                     ).show()
 
@@ -124,12 +129,15 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
                     }, 1500)
                 }
             } catch (e: Exception) {
+                // Нет сети: ответ верный, просто прогресс не сохранился - не блокируем обучение
                 runOnUiThread {
+                    binding.tvStatus.text = "✅ Правильно!"
                     Toast.makeText(
                         this@BaseExerciseActivity,
-                        "Ошибка: ${e.message}",
+                        "Правильно! Но нет связи с сервером, прогресс не сохранён",
                         Toast.LENGTH_SHORT
                     ).show()
+                    binding.root.postDelayed({ nextLevel() }, 1500)
                 }
             }
         }
@@ -143,11 +151,13 @@ abstract class BaseExerciseActivity : AppCompatActivity() {
     }
 
     private fun resetExercise() {
+        awaitingNext = false
         loadLevel(currentLevel)
         binding.tvStatus.text = ""
     }
 
     private fun nextLevel() {
+        awaitingNext = false
         if (currentLevel < totalLevels) {
             currentLevel++
             loadLevel(currentLevel)

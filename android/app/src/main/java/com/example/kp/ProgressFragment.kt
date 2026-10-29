@@ -45,9 +45,8 @@ class ProgressFragment : Fragment() {
                 binding.tvSyncStatus.text = "Загрузка..."
 
                 // Получаем ID пользователя из SharedPreferences
-                val authPrefs = requireContext().getSharedPreferences("chess_auth", 0)
-                val userId = authPrefs.getLong("user_id", 0)
-                val token = authPrefs.getString("auth_token", null)
+                val userId = AuthStore.userId()
+                val token = AuthStore.token()
 
                 if (userId == 0L || token == null) {
                     showLoginRequired()
@@ -67,6 +66,8 @@ class ProgressFragment : Fragment() {
                     )
 
                     binding.tvSyncStatus.text = "✓ Данные загружены"
+                } else if (response.code() == 401) {
+                    showLoginRequired()
                 } else {
                     showError()
                 }

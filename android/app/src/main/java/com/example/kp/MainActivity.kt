@@ -71,7 +71,11 @@ class MainActivity : AppCompatActivity() {
 
             R.id.action_logout -> {
                 Toast.makeText(this, "Выход из системы", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, LoginActivity::class.java))
+                AuthStore.clear()
+                startActivity(
+                    Intent(this, LoginActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                )
                 finish()
                 return true
             }

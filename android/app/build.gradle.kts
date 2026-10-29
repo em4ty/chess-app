@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+// Адрес сервера берётся из gradle.properties (см. API_BASE_URL), а не зашит в коде
+val apiBaseUrl = (project.findProperty("API_BASE_URL") as String?) ?: "https://YOUR-SERVER.example.com/"
+val apiBaseUrlDebug = (project.findProperty("API_BASE_URL_DEBUG") as String?) ?: apiBaseUrl
+
 android {
     namespace = "com.example.kp"
     compileSdk = 36
@@ -20,9 +24,14 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrlDebug\"")
+        }
         release {
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

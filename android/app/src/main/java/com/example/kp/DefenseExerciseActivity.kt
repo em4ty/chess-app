@@ -37,8 +37,8 @@ class DefenseExerciseActivity : BaseExerciseActivity() {
             level = 5,
             fen = "r1bqk1nr/ppp2ppp/2np4/2b1p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 5",
             question = "Сложная защита. Найдите безопасный ход.",
-            correctAnswers = listOf("Nf6", "O-O", "d5"),
-            hint = "Сделайте рокировку или развивайте фигуры."
+            correctAnswers = listOf("Nf6", "d5", "Qe7"),
+            hint = "Развивайте фигуры: вывод коня g8 подготовит рокировку."
         )
     )
 

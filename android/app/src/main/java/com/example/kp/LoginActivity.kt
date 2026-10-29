@@ -1,6 +1,5 @@
 package com.example.kp
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
@@ -14,6 +13,13 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Уже входили: сразу открываем приложение
+        if (AuthStore.isLoggedIn()) {
+            startMainActivity()
+            return
+        }
+
         setContentView(R.layout.activity_login)
 
         setupClickListeners()
@@ -37,6 +43,14 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun performLogin(username: String, password: String) {
+        if (!RetrofitClient.isConfigured) {
+            Toast.makeText(
+                this,
+                "Укажите адрес сервера: API_BASE_URL в android/gradle.properties",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         lifecycleScope.launch {
             try {
                 findViewById<Button>(R.id.btnLogin).isEnabled = false
@@ -63,12 +77,10 @@ class LoginActivity : AppCompatActivity() {
                         }
                     }
                 } else {
+                    val message = ApiErrors.message(response)
+                        ?: if (response.code() == 401) "Неверный логин или пароль" else "Ошибка входа: ${response.code()}"
                     runOnUiThread {
-                        Toast.makeText(
-                            this@LoginActivity,
-                            "❌ Ошибка входа: ${response.code()}",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        Toast.makeText(this@LoginActivity, "❌ $message", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
@@ -89,23 +101,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun saveAuthData(response: LoginResponse) {
-        // ВАЖНО: Сохраняем ВСЕ данные правильно
-        val prefs = getSharedPreferences("chess_auth", Context.MODE_PRIVATE)
-        with(prefs.edit()) {
-            putString("auth_token", response.token)
-            putLong("user_id", response.user.id)
-            putString("username", response.user.username)
-            response.user.email?.let { putString("email", it) }
-            // Также сохраняем статистику из ответа
-            putInt("correct_answers", response.statistics.correctAnswers)
-            putInt("exercises_completed", response.statistics.exercisesCompleted)
-            putInt("total_progress", response.statistics.totalProgressPercent)
-            apply()
-        }
-
-        // ДЕБАГ: Проверим что сохранилось
-        println("DEBUG: Сохранены данные для user_id: ${response.user.id}")
-        println("DEBUG: Токен: ${response.token.take(10)}...")
+        AuthStore.save(response)
     }
 
     private fun startMainActivity() {

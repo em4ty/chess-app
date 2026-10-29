@@ -17,3 +17,5 @@ backend/.mvn/
 *.log
 .DS_Store
 Thumbs.db
+# Секреты окружения
+.env

@@ -41,8 +41,7 @@ class BasicsFragment : Fragment() {
     }
 
     private fun resetTestResults() {
-        val userPrefs = requireContext().getSharedPreferences("chess_prefs", Context.MODE_PRIVATE)
-        val userId = userPrefs.getLong("user_id", 0)
+        val userId = AuthStore.userId()
 
         val quizPrefs = if (userId > 0) {
             requireContext().getSharedPreferences("quiz_results_$userId", Context.MODE_PRIVATE)

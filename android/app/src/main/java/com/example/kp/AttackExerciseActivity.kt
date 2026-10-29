@@ -8,7 +8,7 @@ class AttackExerciseActivity : BaseExerciseActivity() {
         Exercise(
             level = 1,
             fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-            question = "Белые сыграли e4. Как атаковать слабую пешку f2?",
+            question = "Белые сыграли e4. Как ответить и бороться за центр?",
             correctAnswers = listOf("d5", "c5", "e5"),
             hint = "Контролируйте центр или готовьте атаку."
         ),
@@ -22,22 +22,22 @@ class AttackExerciseActivity : BaseExerciseActivity() {
         Exercise(
             level = 3,
             fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 0 3",
-            question = "Найдите тактический удар.",
-            correctAnswers = listOf("Nxe4", "d5", "Bg4"),
-            hint = "Тактический удар конем может быть выигрышным."
+            question = "Как атаковать пешку e4?",
+            correctAnswers = listOf("d5", "Nf6"),
+            hint = "Пешку e4 можно атаковать пешкой d5 или конём с f6."
         ),
         Exercise(
             level = 4,
             fen = "r1bqkbnr/ppp2ppp/2np4/4p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 0 4",
             question = "Создайте сильную атаку.",
-            correctAnswers = listOf("Bb4+", "Nf6", "Qe7"),
-            hint = "Шах слоном может создать проблемы."
+            correctAnswers = listOf("Nf6", "Qe7", "Bg4"),
+            hint = "Свяжите коня f3 слоном g4 или создайте угрозу пешке e4."
         ),
         Exercise(
             level = 5,
             fen = "r1bqk1nr/ppp2ppp/2np4/2b1p3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 2 5",
             question = "Мастерская атака. Найдите комбинацию.",
-            correctAnswers = listOf("Bb4+", "Nxe4", "Qh4"),
+            correctAnswers = listOf("Bb4+", "Qh4", "Nf6"),
             hint = "Шах слоном Bb4+ создает тактические возможности."
         )
     )

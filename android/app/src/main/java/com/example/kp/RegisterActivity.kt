@@ -7,8 +7,6 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.example.kp.RegisterRequest
-import com.example.kp.RetrofitClient
 import kotlinx.coroutines.launch
 
 class RegisterActivity : AppCompatActivity() {
@@ -68,8 +66,8 @@ class RegisterActivity : AppCompatActivity() {
         if (password.isEmpty()) {
             findViewById<EditText>(R.id.etPassword).error = "Введите пароль"
             isValid = false
-        } else if (password.length < 4) {
-            findViewById<EditText>(R.id.etPassword).error = "Пароль должен содержать минимум 4 символа"
+        } else if (password.length < 6) {
+            findViewById<EditText>(R.id.etPassword).error = "Пароль должен содержать минимум 6 символов"
             isValid = false
         }
 
@@ -91,13 +89,21 @@ class RegisterActivity : AppCompatActivity() {
     }
 
     private fun performRegister(username: String, email: String, password: String) {
+        if (!RetrofitClient.isConfigured) {
+            Toast.makeText(
+                this,
+                "Укажите адрес сервера: API_BASE_URL в android/gradle.properties",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val button = findViewById<Button>(R.id.btnRegister)
+
         lifecycleScope.launch {
             try {
-                // Показать прогресс
-                findViewById<Button>(R.id.btnRegister).isEnabled = false
-                findViewById<Button>(R.id.btnRegister).text = "Регистрация..."
+                button.isEnabled = false
+                button.text = "Регистрация..."
 
-                // Выполнить запрос к Backend
                 val response = RetrofitClient.instance.register(
                     RegisterRequest(
                         username = username,
@@ -106,46 +112,48 @@ class RegisterActivity : AppCompatActivity() {
                     )
                 )
 
-                // Успешная регистрация
-                runOnUiThread {
-                    findViewById<Button>(R.id.btnRegister).isEnabled = true
-                    findViewById<Button>(R.id.btnRegister).text = "Зарегистрироваться"
+                // Retrofit не бросает исключение на 400/409, поэтому код ответа нужно проверять самим
+                if (!response.isSuccessful) {
+                    val message = ApiErrors.message(response) ?: "Ошибка регистрации: ${response.code()}"
+                    Toast.makeText(this@RegisterActivity, message, Toast.LENGTH_LONG).show()
+                    return@launch
+                }
 
+                // Сразу входим под только что созданным аккаунтом
+                val loginResponse = RetrofitClient.instance.login(LoginRequest(username, password))
+                val loginBody = loginResponse.body()
+                if (loginResponse.isSuccessful && loginBody != null) {
+                    AuthStore.save(loginBody)
                     Toast.makeText(
                         this@RegisterActivity,
                         "Регистрация успешна! Добро пожаловать, $username!",
                         Toast.LENGTH_SHORT
                     ).show()
-
-                    // Автоматически входим после регистрации
-                    val intent = Intent(this@RegisterActivity, LoginActivity::class.java)
-                    intent.putExtra("username", username)
-                    intent.putExtra("password", password)
-                    startActivity(intent)
-                    finish()
-                }
-
-            } catch (e: Exception) {
-                runOnUiThread {
-                    findViewById<Button>(R.id.btnRegister).isEnabled = true
-                    findViewById<Button>(R.id.btnRegister).text = "Зарегистрироваться"
-
-                    val errorMessage = when {
-                        e.message?.contains("already exists", ignoreCase = true) == true ->
-                            "Пользователь с таким логином уже существует"
-                        e.message?.contains("connect", ignoreCase = true) == true ->
-                            "Не удалось подключиться к серверу. Проверьте интернет"
-                        e.message?.contains("timeout", ignoreCase = true) == true ->
-                            "Превышено время ожидания"
-                        else -> "Ошибка регистрации: ${e.message}"
-                    }
-
+                    startActivity(
+                        Intent(this@RegisterActivity, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    )
+                } else {
                     Toast.makeText(
                         this@RegisterActivity,
-                        errorMessage,
+                        "Регистрация успешна. Теперь войдите в аккаунт",
                         Toast.LENGTH_LONG
                     ).show()
+                    startActivity(Intent(this@RegisterActivity, LoginActivity::class.java))
                 }
+                finish()
+            } catch (e: Exception) {
+                val errorMessage = when {
+                    e is java.net.SocketTimeoutException ->
+                        "Превышено время ожидания. Сервер мог «просыпаться», попробуйте ещё раз"
+                    e is java.io.IOException ->
+                        "Не удалось подключиться к серверу. Проверьте интернет"
+                    else -> "Ошибка регистрации: ${e.message}"
+                }
+                Toast.makeText(this@RegisterActivity, errorMessage, Toast.LENGTH_LONG).show()
+            } finally {
+                button.isEnabled = true
+                button.text = "Зарегистрироваться"
             }
         }
     }
