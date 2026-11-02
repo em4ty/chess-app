@@ -15,17 +15,19 @@ interface ChessApiService {
     @GET("api/stats/{userId}")
     suspend fun getStats(@Path("userId") userId: Long): Response<StatisticsResponse>
 
-    @PUT("api/stats/{userId}")
-    suspend fun updateStats(
+    /** Результат теста: на сервере сохраняется лучший результат. */
+    @POST("api/stats/{userId}/quiz")
+    suspend fun saveQuizResult(
         @Path("userId") userId: Long,
-        @Body request: UpdateStatsRequest
+        @Body request: QuizResultRequest
     ): Response<StatisticsResponse>
 
-    @POST("api/stats/{userId}/add-correct")
-    suspend fun addCorrectAnswer(@Path("userId") userId: Long): Response<StatisticsResponse>
-
-    @POST("api/stats/{userId}/add-exercise")
-    suspend fun addExerciseCompleted(@Path("userId") userId: Long): Response<StatisticsResponse>
+    /** Упражнение пройдено. Повторное прохождение того же упражнения счётчик не увеличивает. */
+    @POST("api/stats/{userId}/exercise")
+    suspend fun completeExercise(
+        @Path("userId") userId: Long,
+        @Body request: ExerciseCompletedRequest
+    ): Response<StatisticsResponse>
 }
 
 // === DTO классы ===
@@ -66,9 +68,11 @@ data class StatisticsResponse(
     val lastUpdated: String
 )
 
-// ДОБАВЛЯЕМ: Запрос на обновление статистики
-data class UpdateStatsRequest(
-    val correctAnswers: Int? = null,
-    val exercisesCompleted: Int? = null,
-    val totalProgressPercent: Int? = null
-)
+// Результат теста (0..15 правильных ответов)
+data class QuizResultRequest(val correctAnswers: Int)
+
+// Пройденное упражнение: тип "defense" | "attack" | "checkmate" и уровень 1..5
+data class ExerciseCompletedRequest(val exerciseType: String, val level: Int)
+
+// Тело ошибки сервера: {"error": "..."}
+data class ApiError(val error: String?)

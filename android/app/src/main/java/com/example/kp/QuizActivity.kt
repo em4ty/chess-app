@@ -18,8 +18,6 @@ class QuizActivity : AppCompatActivity() {
     private var userAnswers = mutableMapOf<Int, Int>()
     private var userResults = mutableMapOf<Int, Boolean>()
 
-    private var totalCorrectInQuiz = 0
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityQuizBinding.inflate(layoutInflater)
@@ -30,8 +28,6 @@ class QuizActivity : AppCompatActivity() {
         initializeQuestions()
         setupQuestion()
         setupClickListeners()
-
-        totalCorrectInQuiz = 0
     }
 
     private fun initializeQuestions() {
@@ -44,7 +40,7 @@ class QuizActivity : AppCompatActivity() {
                 listOf("81", "64", "100", "32"), 1),
             Question("Какая фигура самая сильная?", null,
                 listOf("Король", "Ладья", "Ферзь", "Конь"), 2),
-            Question("Как называется ситуация, когда королю некуда ходить?", null,
+            Question("Как называется ситуация, когда у игрока нет ни одного хода, а его король не под шахом?", null,
                 listOf("Мат", "Шах", "Пат", "Рокировка"), 2),
             Question("Какой ход могут сделать король и ладья вместе?", null,
                 listOf("Взятие на проходе", "Превращение пешки", "Рокировка", "Шах"), 2),
@@ -109,11 +105,9 @@ class QuizActivity : AppCompatActivity() {
             }
 
             val isCorrect = selectedAnswer == questions[currentQuestionIndex].correctAnswer
+            // Результат хранится по номеру вопроса: повторный ответ на тот же вопрос не удваивает счёт
             userResults[currentQuestionIndex] = isCorrect
-
-            if (isCorrect) {
-                totalCorrectInQuiz++
-            }
+            binding.btnAnswer.isEnabled = false
 
             showAnswerResult(isCorrect, selectedAnswer, questions[currentQuestionIndex].correctAnswer)
 
@@ -193,7 +187,7 @@ class QuizActivity : AppCompatActivity() {
 
     private fun showResults() {
         val totalQuestions = questions.size
-        val correctAnswers = totalCorrectInQuiz
+        val correctAnswers = userResults.values.count { it }
         val percentage = (correctAnswers.toFloat() / totalQuestions * 100).toInt()
 
         // Отправляем на сервер РЕЗУЛЬТАТ ТЕСТА (а не добавляем к существующим)
@@ -209,57 +203,17 @@ class QuizActivity : AppCompatActivity() {
     }
 
     private fun sendTestResultsToServer(correctAnswers: Int) {
+        val userId = AuthStore.userId()
+        if (userId <= 0 || AuthStore.token() == null) return
+
         lifecycleScope.launch {
             try {
-                val authPrefs = getSharedPreferences("chess_auth", MODE_PRIVATE)
-                val userId = authPrefs.getLong("user_id", 0)
-                val token = authPrefs.getString("auth_token", null)
-
-                if (userId > 0 && token != null) {
-                    // ВАЖНО: Обновляем статистику теста, а не добавляем к ней
-
-                    // 1. Получаем текущую статистику
-                    val currentStatsResponse = RetrofitClient.instance.getStats(userId)
-
-                    if (currentStatsResponse.isSuccessful && currentStatsResponse.body() != null) {
-                        val currentStats = currentStatsResponse.body()!!
-
-                        // 2. Обновляем только правильные ответы теста
-                        // Вычитаем старые и добавляем новые
-                        val newCorrectAnswers = correctAnswers // Просто результат текущего теста
-
-                        // 3. Обновляем на сервере
-                        val updateRequest = UpdateStatsRequest(
-                            correctAnswers = newCorrectAnswers,
-                            exercisesCompleted = currentStats.exercisesCompleted,
-                            totalProgressPercent = calculateTotalProgress(newCorrectAnswers, currentStats.exercisesCompleted)
-                        )
-
-                        RetrofitClient.instance.updateStats(userId, updateRequest)
-                    } else {
-                        // Если статистики нет, создаем новую
-                        val updateRequest = UpdateStatsRequest(
-                            correctAnswers = correctAnswers,
-                            exercisesCompleted = 0,
-                            totalProgressPercent = calculateTotalProgress(correctAnswers, 0)
-                        )
-
-                        RetrofitClient.instance.updateStats(userId, updateRequest)
-                    }
-                }
+                // Сервер сам хранит лучший результат и пересчитывает общий прогресс
+                RetrofitClient.instance.saveQuizResult(userId, QuizResultRequest(correctAnswers))
             } catch (e: Exception) {
                 println("Ошибка отправки результатов теста: ${e.message}")
             }
         }
-    }
-
-    private fun calculateTotalProgress(correctAnswers: Int, exercisesCompleted: Int): Int {
-        val totalPossible = 30 // 15 вопросов теста + 15 упражнений
-        val totalCompleted = minOf(correctAnswers, 15) + minOf(exercisesCompleted, 15)
-
-        return if (totalPossible > 0) {
-            (totalCompleted * 100) / totalPossible
-        } else 0
     }
 
     data class Question(

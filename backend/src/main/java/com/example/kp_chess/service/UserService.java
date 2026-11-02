@@ -1,147 +1,173 @@
 package com.example.kp_chess.service;
 
 import com.example.kp_chess.dto.*;
+import com.example.kp_chess.exception.ApiException;
 import com.example.kp_chess.model.User;
 import com.example.kp_chess.model.UserStatistics;
+import com.example.kp_chess.repository.CompletedExerciseRepository;
 import com.example.kp_chess.repository.UserRepository;
 import com.example.kp_chess.repository.UserStatisticsRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.kp_chess.security.TokenService;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Service
 public class UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    /** В тесте 15 вопросов и 15 упражнений (3 типа по 5 уровней). */
+    static final int MAX_QUIZ = 15;
+    static final int MAX_EXERCISES = 15;
 
-    @Autowired
-    private UserStatisticsRepository statisticsRepository;
+    private static final int BCRYPT_MAX_BYTES = 72;
+    private static final String BAD_CREDENTIALS = "Invalid username or password";
 
-    // Проверка существования пользователя
-    public boolean userExists(Long userId) {
-        return userRepository.existsById(userId);
+    private final UserRepository userRepository;
+    private final UserStatisticsRepository statisticsRepository;
+    private final CompletedExerciseRepository completedExerciseRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final TokenService tokenService;
+
+    public UserService(UserRepository userRepository,
+                       UserStatisticsRepository statisticsRepository,
+                       CompletedExerciseRepository completedExerciseRepository,
+                       PasswordEncoder passwordEncoder,
+                       TokenService tokenService) {
+        this.userRepository = userRepository;
+        this.statisticsRepository = statisticsRepository;
+        this.completedExerciseRepository = completedExerciseRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.tokenService = tokenService;
     }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
-        // Проверка существования пользователя
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
+        String username = request.getUsername().trim();
+        String email = request.getEmail() == null || request.getEmail().isBlank()
+                ? null : request.getEmail().trim();
+
+        if (username.length() < 3) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Username must be between 3 and 50 characters");
+        }
+        if (request.getPassword().getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Password is too long");
+        }
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Username already exists");
+        }
+        if (email != null && userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
         }
 
-        // Создание пользователя
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPasswordHash(request.getPassword()); // Пароль без хэширования
-        user.setEmail(request.getEmail());
-
+        User user = new User(username, passwordEncoder.encode(request.getPassword()), email);
         User savedUser = userRepository.save(user);
-
-        // Создание статистики для пользователя
-        UserStatistics statistics = new UserStatistics(savedUser);
-        statisticsRepository.save(statistics);
+        statisticsRepository.save(new UserStatistics(savedUser));
 
         return toUserResponse(savedUser);
     }
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
-        // Найти пользователя
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        String rawPassword = request.getPassword();
+        // Одинаковая ошибка для "нет такого пользователя" и "неверный пароль" - не раскрываем, какие логины существуют
+        User user = userRepository.findByUsernameIgnoreCase(request.getUsername().trim())
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, BAD_CREDENTIALS));
 
-        // Проверить пароль (простое сравнение)
-        if (!request.getPassword().equals(user.getPasswordHash())) {
-            throw new RuntimeException("Invalid password");
+        if (!passwordMatches(user, rawPassword)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, BAD_CREDENTIALS);
         }
 
-        // Получить статистику
-        UserStatistics statistics = statisticsRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("Statistics not found"));
-
-        // Создать токен (упрощённо)
-        String token = "token_" + user.getId() + "_" + System.currentTimeMillis();
-
+        UserStatistics statistics = getOrCreateStatistics(user);
         return new LoginResponse(
-                token,
+                tokenService.issue(user.getId()),
                 toUserResponse(user),
                 toStatisticsResponse(statistics)
         );
     }
 
-    // ДОБАВЬТЕ ЭТИ МЕТОДЫ:
-
+    @Transactional(readOnly = true)
     public StatisticsResponse getUserStats(Long userId) {
-        // Проверяем существование пользователя
-        if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found with id: " + userId);
+        UserStatistics statistics = statisticsRepository.findByUserId(userId).orElse(null);
+        if (statistics == null) {
+            // Нет строки статистики: либо нет пользователя (404), либо старая запись - тогда отдаём нули
+            if (!userRepository.existsById(userId)) {
+                throw userNotFound(userId);
+            }
+            return new StatisticsResponse(0, 0, 0, LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
-
-        // Получаем статистику
-        UserStatistics statistics = statisticsRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Statistics not found for user id: " + userId));
-
         return toStatisticsResponse(statistics);
     }
 
+    /** Сохраняет результат теста. Засчитывается лучший результат, прогресс считается на сервере. */
     @Transactional
-    public StatisticsResponse updateUserStats(Long userId, UpdateStatsRequest request) {
-        // Проверяем существование пользователя
-        if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found with id: " + userId);
-        }
+    public StatisticsResponse recordQuizResult(Long userId, int correctAnswers) {
+        UserStatistics statistics = getOrCreateStatistics(findUser(userId));
+        int best = Math.max(statistics.getCorrectAnswers(), clamp(correctAnswers, MAX_QUIZ));
+        statistics.setCorrectAnswers(best);
+        return saveRecalculated(statistics);
+    }
 
-        // Получаем статистику
-        UserStatistics statistics = statisticsRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Statistics not found for user id: " + userId));
+    /** Отмечает упражнение пройденным. Повторное прохождение того же упражнения счётчик не увеличивает. */
+    @Transactional
+    public StatisticsResponse recordExerciseCompleted(Long userId, String exerciseType, int level) {
+        UserStatistics statistics = getOrCreateStatistics(findUser(userId));
+        completedExerciseRepository.insertIfAbsent(userId, exerciseType, level);
+        long done = completedExerciseRepository.countByUserId(userId);
+        statistics.setExercisesCompleted(clamp((int) done, MAX_EXERCISES));
+        return saveRecalculated(statistics);
+    }
 
-        // Обновляем только переданные поля
-        if (request.getCorrectAnswers() != null) {
-            statistics.setCorrectAnswers(request.getCorrectAnswers());
-        }
+    // ---------------------------------------------------------------- helpers
 
-        if (request.getExercisesCompleted() != null) {
-            statistics.setExercisesCompleted(request.getExercisesCompleted());
-        }
-
-        if (request.getTotalProgressPercent() != null) {
-            // Проверяем, что процент в пределах 0-100
-            int percent = Math.max(0, Math.min(100, request.getTotalProgressPercent()));
-            statistics.setTotalProgressPercent(percent);
-        }
-
-        // Обновляем время последнего изменения
+    private StatisticsResponse saveRecalculated(UserStatistics statistics) {
+        int quiz = clamp(statistics.getCorrectAnswers(), MAX_QUIZ);
+        int exercises = clamp(statistics.getExercisesCompleted(), MAX_EXERCISES);
+        statistics.setTotalProgressPercent((quiz + exercises) * 100 / (MAX_QUIZ + MAX_EXERCISES));
         statistics.setLastUpdated(LocalDateTime.now());
-
-        UserStatistics updatedStats = statisticsRepository.save(statistics);
-        return toStatisticsResponse(updatedStats);
+        return toStatisticsResponse(statisticsRepository.save(statistics));
     }
 
-    // Вспомогательные методы для обновления статистики
-    @Transactional
-    public StatisticsResponse addCorrectAnswer(Long userId) {
-        StatisticsResponse currentStats = getUserStats(userId);
-
-        UpdateStatsRequest request = new UpdateStatsRequest();
-        request.setCorrectAnswers(currentStats.getCorrectAnswers() + 1);
-
-        return updateUserStats(userId, request);
+    private boolean passwordMatches(User user, String rawPassword) {
+        if (rawPassword.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
+            return false;
+        }
+        String stored = user.getPasswordHash();
+        if (stored.startsWith("$2")) { // BCrypt
+            return passwordEncoder.matches(rawPassword, stored);
+        }
+        // Старые аккаунты, созданные до хеширования, хранят пароль открытым текстом:
+        // проверяем и сразу переводим на BCrypt.
+        boolean legacyMatch = MessageDigest.isEqual(
+                stored.getBytes(StandardCharsets.UTF_8), rawPassword.getBytes(StandardCharsets.UTF_8));
+        if (legacyMatch) {
+            user.setPasswordHash(passwordEncoder.encode(rawPassword));
+            userRepository.save(user);
+        }
+        return legacyMatch;
     }
 
-    @Transactional
-    public StatisticsResponse addExerciseCompleted(Long userId) {
-        StatisticsResponse currentStats = getUserStats(userId);
-
-        UpdateStatsRequest request = new UpdateStatsRequest();
-        request.setExercisesCompleted(currentStats.getExercisesCompleted() + 1);
-
-        return updateUserStats(userId, request);
+    private User findUser(Long userId) {
+        return userRepository.findById(userId).orElseThrow(() -> userNotFound(userId));
     }
 
-    // Приватные методы преобразования
+    private UserStatistics getOrCreateStatistics(User user) {
+        return statisticsRepository.findByUserId(user.getId())
+                .orElseGet(() -> statisticsRepository.save(new UserStatistics(user)));
+    }
+
+    private ApiException userNotFound(Long userId) {
+        return new ApiException(HttpStatus.NOT_FOUND, "User not found with id: " + userId);
+    }
+
+    private static int clamp(int value, int max) {
+        return Math.max(0, Math.min(max, value));
+    }
 
     private UserResponse toUserResponse(User user) {
         return new UserResponse(

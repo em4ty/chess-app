@@ -14,12 +14,12 @@ public class RegisterRequest {
 
     @Schema(description = "User password", example = "Password123!", required = true)
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @Size(min = 6, max = 72, message = "Password must be between 6 and 72 characters")
     private String password;
 
-    @Schema(description = "User email", example = "john@example.com", required = true)
-    @NotBlank(message = "Email is required")
+    @Schema(description = "User email (optional)", example = "john@example.com")
     @Email(message = "Email should be valid")
+    @Size(max = 255, message = "Email is too long")
     private String email;
 
     // Геттеры и сеттеры

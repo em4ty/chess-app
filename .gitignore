@@ -1,6 +1,7 @@
 # Android
 android/.gradle/
 android/build/
+android/app/release/
 android/app/build/
 android/local.properties
 android/.idea/
@@ -17,3 +18,5 @@ backend/.mvn/
 *.log
 .DS_Store
 Thumbs.db
+# Секреты окружения
+.env

@@ -1,0 +1,24 @@
+# Blueprint для Render (https://render.com): New -> Blueprint -> выбрать этот репозиторий.
+# База данных здесь НЕ создаётся: бесплатный Postgres на Render удаляется через 30 дней,
+# поэтому используем внешний (например Neon) и передаём доступ через переменные ниже.
+services:
+  - type: web
+    name: chess-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_HOST        # из строки подключения Neon, например ep-xxx.eu-central-1.aws.neon.tech
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_PARAMS
+        value: "?sslmode=require"
+      - key: AUTH_SECRET
+        generateValue: true

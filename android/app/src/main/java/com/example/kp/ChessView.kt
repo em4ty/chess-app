@@ -33,6 +33,10 @@ class ChessBoardView @JvmOverloads constructor(
     private val moveHistory = mutableListOf<String>()
     private var onMoveMadeListener: ((String) -> Unit)? = null
 
+    /** Тип фигуры, которой сделан последний ход (доступен слушателю хода). */
+    var lastMovedPieceType: PieceType? = null
+        private set
+
     init {
         setupPaints()
         resetBoard()  // Инициализируем стандартную доску
@@ -192,6 +196,7 @@ class ChessBoardView @JvmOverloads constructor(
                 val toSquare = "${'a' + col}${8 - row}"
                 val moveNotation = "$fromSquare$toSquare"
                 moveHistory.add(moveNotation)
+                lastMovedPieceType = selectedPiece?.type
 
                 // Выполняем ход
                 board[row][col] = selectedPiece
