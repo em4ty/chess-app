@@ -11,6 +11,6 @@ RUN useradd --system --create-home appuser
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 USER appuser
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=65 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k"
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "echo \"[start] PORT=$PORT\"; ls -la /app; java -version; echo \"[start] launching\"; exec java $JAVA_OPTS -jar app.jar"]
